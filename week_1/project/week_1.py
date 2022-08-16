@@ -1,4 +1,5 @@
 import csv
+import heapq
 from datetime import datetime
 from typing import List
 
@@ -27,6 +28,9 @@ class Stock(BaseModel):
             low=float(input_list[5]),
         )
 
+    def __lt__(self, other):
+        return self.high < other.high
+
 
 @usable_as_dagster_type(description="Aggregation of stock data")
 class Aggregation(BaseModel):
@@ -50,16 +54,24 @@ def get_s3_data(context):
     return output
 
 
-@op
-def process_data():
-    pass
+@op(
+    ins={"stocks": In(dagster_type=List[Stock])},
+    out={"aggregation": Out(dagster_type=Aggregation)},
+    description="Given a list of stocks return the Aggregation with the greatest high value"
+)
+def process_data(stocks: List[Stock]) -> Aggregation:
+    max_stock = heapq.nlargest(1, stocks)[0]
+    return Aggregation(date=max_stock.date, high=max_stock.high)
 
 
-@op
-def put_redis_data():
+@op(description = "Upload an Aggregation to Redis",
+    tags={"kind": "redis"})
+def put_redis_data(aggregation: Aggregation) -> None:
     pass
 
 
 @job
 def week_1_pipeline():
+    data = process_data(get_s3_data())
+    put_redis_data(data)
     pass
