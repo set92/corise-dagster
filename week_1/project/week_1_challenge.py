@@ -1,18 +1,9 @@
 import csv
+import heapq
 from datetime import datetime
-from heapq import nlargest
 from typing import List
 
-from dagster import (
-    DynamicOut,
-    DynamicOutput,
-    In,
-    Nothing,
-    Out,
-    job,
-    op,
-    usable_as_dagster_type,
-)
+from dagster import (DynamicOut, DynamicOutput, In, Out, job, op, usable_as_dagster_type, )
 from pydantic import BaseModel
 
 
@@ -37,6 +28,8 @@ class Stock(BaseModel):
             low=float(input_list[5]),
         )
 
+    def __lt__(self, other):
+        return self.high < other.high
 
 @usable_as_dagster_type(description="Aggregation of stock data")
 class Aggregation(BaseModel):
@@ -60,16 +53,31 @@ def get_s3_data(context):
     return output
 
 
-@op
-def process_data():
-    pass
+
+@op(
+    config_schema={"nlargest": int},
+    ins={"stocks": In(dagster_type=List[Stock])},
+    out=DynamicOut(dagster_type = Aggregation),
+    description="Given a list of stocks return the Aggregation with the greatest high value"
+)
+def process_data(context, stocks: List[Stock]) -> Aggregation:
+    n_aggregations = context.op_config["nlargest"]
+    lst_stock = heapq.nlargest(n_aggregations, stocks)
+    for idx in range(n_aggregations):
+        max_stock = lst_stock[idx]
+        yield DynamicOutput(Aggregation(date=max_stock.date, high=max_stock.high), mapping_key = str(idx))
 
 
-@op
-def put_redis_data():
+@op(description = "Upload an Aggregation to Redis",
+    tags={"kind": "redis"})
+def put_redis_data(context, aggregation: Aggregation) -> None:
+    context.log.info(f"{aggregation=}")
     pass
 
 
 @job
 def week_1_pipeline():
+    dynamic_output = process_data(get_s3_data())
+    dynamic_data = dynamic_output.map(put_redis_data)
+    dynamic_data.collect()
     pass
