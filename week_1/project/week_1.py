@@ -74,4 +74,3 @@ def put_redis_data(aggregation: Aggregation) -> None:
 def week_1_pipeline():
     data = process_data(get_s3_data())
     put_redis_data(data)
-    pass
