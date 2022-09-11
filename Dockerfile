@@ -31,7 +31,7 @@ RUN apt-get update && \
     curl -sSL https://install.python-poetry.org | python -
 
 COPY poetry.lock pyproject.toml /
-RUN pip install --no-cache-dir --upgrade pip==21.3.1 setuptools==60.2.0 wheel==0.37.1 && \
+RUN pip install --no-cache-dir --upgrade pip==22.2.2 setuptools==65.3.0 wheel==0.37.1 && \
     poetry config virtualenvs.path "$VIRTUAL_ENV" && \
     poetry install --no-root --no-interaction --no-ansi --no-dev
 
